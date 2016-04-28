@@ -14,5 +14,5 @@ const cli = meow(`
   }
 );
 
-// console.log('cli', cli);
-// process.exit(1);
+console.log('Invalid .setupizerrc configuration file');
+process.exit(1);

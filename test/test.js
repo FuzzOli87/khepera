@@ -20,6 +20,9 @@ function execCli(args) {
   const dirname = __dirname;
   const env = {};
 
+  let stdout;
+  let stderr;
+
   const processPromise = new Promise(resolve => {
     const child = childProcess.spawn(process.execPath, concatPath(dirname, args), {
       cwd: dirname,
@@ -33,32 +36,26 @@ function execCli(args) {
 
         err.code = code;
         err.signal = signal;
-        resolve({ err });
+        resolve(err);
 
         return;
       }
 
-      resolve({ code });
+      resolve(code);
     });
 
-    const stdout = getStream(child.stdout);
-    const stderr = getStream(child.stderr);
-
-    Promise.all([stdout, stderr])
-    .then(([out, err]) => {
-      resolve({
-        stdout: out,
-        stderr: err
-      });
-    });
+    stdout = getStream(child.stdout);
+    stderr = getStream(child.stderr);
   });
 
-  return processPromise;
+  return Promise.all([processPromise, stdout, stderr]);
 }
 
 test('Disallow invalid configurations', async t => {
-  t.plan(1);
+  t.plan(2);
 
-  const { stderr } = await execCli(['-p', 'fixtures/.basefactory']);
-  t.is(stderr, /Invalid .basefactory configuration file/, 'Does not throw error text');
+  const [err, stdout] = await execCli(['-p', 'fixtures/.basefactory']);
+
+  t.truthy(err, 'Properly throws out an error since we exited process');
+  t.is(stdout, 'Invalid .setupizerc configuration file\n', 'Does not throw error text');
 });
