@@ -16,9 +16,9 @@ const concatPath = (dirname, concactees) => (
   [path.relative(dirname, cliPath)].concat(toArray(concactees))
 );
 
-function execCli(args) {
+function execCli({ args = [], options = {} } = {}) {
   const dirname = __dirname;
-  const env = {};
+  const { env = {} } = options;
 
   let stdout;
   let stderr;
@@ -51,11 +51,27 @@ function execCli(args) {
   return Promise.all([processPromise, stdout, stderr]);
 }
 
-test('Disallow invalid configurations', async t => {
+test('exit with error if HOME environment variable not available', async t => {
   t.plan(2);
 
-  const [err, stdout] = await execCli(['-p', 'fixtures/.basefactory']);
+  const [err, stdout] = await execCli();
 
   t.truthy(err, 'Properly throws out an error since we exited process');
-  t.is(stdout, 'Invalid .setupizerc configuration file\n', 'Does not throw error text');
+  t.is(stdout, 'HOME env variable not available, check configuration\n',
+       'Does not throw error text');
+});
+
+test('exit with error if configuration file not found in HOME directory', async t => {
+  t.plan(2);
+
+  const options = {
+    env: {
+      HOME: path.resolve(__dirname, 'fixtures/noconfig')
+    }
+  };
+
+  const [err, stdout] = await execCli({ options });
+
+  t.truthy(err, 'Properly throws out an error since we exited process');
+  t.is(stdout, 'No .kheperarc file found in home directory\n', 'Does not throw error text');
 });
