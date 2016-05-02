@@ -3,37 +3,31 @@ import eslint from 'gulp-eslint';
 import babel from 'gulp-babel';
 import sourcemaps from 'gulp-sourcemaps';
 import sloc from 'gulp-sloc';
-import bump from 'gulp-bump';
+import bumpVersion from 'gulp-bump';
 import runSequence from 'run-sequence';
 import del from 'del';
 import todo from 'gulp-todo';
-import git from 'gulp-git';
-
+import git from './gitStreamed';
+import fs from 'fs';
 
 /* ************************************************************************* */
 /* Helpers                                                                   */
 /* ************************************************************************* */
 
+const getPackageJSON = () => JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+const getBabelRC = () => JSON.parse(fs.readFileSync('./.babelrc', 'utf8'));
+
 /*
 * Generate and add todo task before committing.
 */
-
-gulp.task('gittodo', () => gulp.src('./TODO.md')
-  .pipe(git.add()));
-
 gulp.task('todo', () => gulp.src('src/**/*.js')
   .pipe(todo())
   .pipe(gulp.dest('./')));
 
-gulp.task('gentodo', () => runSequence(
-  'todo',
-  'gittodo'
-));
-
 /*
 * CLean whatever directory is passed in.
 */
-const cleany = distGlob => (
+const clean = distGlob => (
   del([
     distGlob
   ])
@@ -42,25 +36,22 @@ const cleany = distGlob => (
 /*
 * Copy necessary files to the /dist folder for publishing after transpiling.
 */
-const copyey = (fileGlob, destDir) => gulp.src(fileGlob)
+const copy = (fileGlob, destDir) => gulp.src(fileGlob)
   .pipe(gulp.dest(destDir));
 
 /*
 * Hook transpiling step to gulpSrc passed in.
 */
-const transpily = (fileGlob, destDir) => gulp.src(fileGlob)
-  .pipe(sourcemaps.init())
-  .pipe(babel({
-    sourceMaps: 'inline',
-    presets: ['es2015'],
-    plugins: [
-      'transform-runtime',
-      'transform-strict-mode'
-    ]
-  }))
-  .pipe(sourcemaps.write('.'))
-  .pipe(gulp.dest(destDir));
+const transpile = (fileGlob, destDir) => {
+  const babelRC = JSON.parse(JSON.stringify(getBabelRC()));
+  delete babelRC.sourceMaps;
 
+  return gulp.src(fileGlob)
+    .pipe(sourcemaps.init())
+    .pipe(babel(babelRC))
+    .pipe(sourcemaps.write('.'))
+    .pipe(gulp.dest(destDir));
+};
 /*
 * Count lines. Not implemented.
 */
@@ -89,98 +80,100 @@ gulp.task('lint', () => (
 ));
 
 /* ************************************************************************* */
-/* Perf Tasks                                                                */
-/* ************************************************************************* */
-
-/*
-* Clean/create the perf_runner directory.
-*/
-gulp.task('clean-perf', () => cleany('./perf_runner/*'));
-
-/*
-* Copy any json files in perf directory.
-*/
-gulp.task('copy-perf', () => (
-  copyey(['perf/**/*.json'], 'perf_runner'))
-);
-
-/*
-* Transpile source and copy important json to build-perf.
-*/
-gulp.task('transpile-perf', () => transpily(
-  ['src/**/*.js', 'perf/**/*.js'],
-'perf_runner'));
-
-/*
-* Build the directory which includes transpiling, cleaning and copying.
-*/
-gulp.task('build-perf', () =>
-runSequence(
-  'clean-perf',
-  ['transpile-perf', 'copy-perf']
-)
-);
-
-
-/* ************************************************************************* */
 /* Main Tasks                                                                */
 /* ************************************************************************* */
 
 /*
 * Transpile main source to /dist.
 */
-gulp.task('transpile-main', () => transpily('src/**/*.js', 'dist'));
+gulp.task('transpile', () => transpile('src/**/*.js', 'dist'));
 
 /*
 * Clean/create the dist directory.
 */
-gulp.task('clean-main', () => cleany('./dist/*'));
+gulp.task('clean', () => clean('./dist/*'));
 
 /*
 * Copy package.json and README.md to new dist directory.
 */
-gulp.task('copy-main', () => (
-  copyey(['./package.json', './README.md'], 'dist'))
+gulp.task('copy', () => (
+  copy(['./package.json', './README.md'], 'dist'))
 );
 
 /*
 * Bump package.json.
 * #These are not exposed in any npm script. Used by release tasks.
 */
-const bumpy = (importance, tag) => gulp.src('./*.json')
-  .pipe(bump({ type: importance, preid: tag }))
+const bump = (importance, tag) => gulp.src('./package.json')
+  .pipe(bumpVersion({ type: importance, preid: tag }))
   .pipe(gulp.dest('./'));
 
 /*
 * Release tasks.
 */
-gulp.task('prerelease', () => bumpy('prerelease', 'beta'));
-gulp.task('patch', () => bumpy('patch'));
-gulp.task('major', () => bumpy('major'));
-gulp.task('minor', () => bumpy('minor'));
+// gulp.task('git-tag', () => (
+//   git.tag()
+// ));
+
+/*
+* Release tasks.
+*/
+const gitCB = err => {
+  if (err) {
+    throw err;
+  }
+};
+const commit = msg => git.commit(msg);
+const add = glob => gulp.src(glob).pipe(git.add());
+const describe = options => git.exec(options, gitCB);
+const push = () => git.push();
+
+gulp.task('git-bump-tag', () => {
+  const pkg = getPackageJSON();
+  const version = `v${pkg.version}`;
+  const commitMsg = `Release ${version}`;
+  const tagMsg = `Version ${pkg.version}`;
+  const describeOpts = { args: 'describe --tags --always --abbrev=1 --dirty=-d' };
+
+  return add('./package.json')
+    .pipe(commit(commitMsg))
+    .pipe(git.tag(version, tagMsg, gitCB))
+    .pipe(describe(describeOpts))
+    .pipe(push());
+});
+
+/*
+* Release tasks.
+*/
+gulp.task('prerelease', () => bump('prerelease', 'beta'));
+gulp.task('patch', () => bump('patch'));
+gulp.task('major', () => bump('major'));
+gulp.task('minor', () => bump('minor'));
 
 /*
 * Release task that update package.json according to what the release does
 * according to SemVer and transpile the code.
 */
-const releasy = importance => runSequence(
+const release = importance => runSequence(
   importance,
-  'clean-main',
-  ['transpile-main', 'copy-main']
+  'git-bump-tag',
+  'clean',
+  ['transpile', 'copy']
 );
 
 /*
 * Core release tasks.
 */
-gulp.task('release-patch', () => releasy('patch'));
-gulp.task('release-minor', () => releasy('minor'));
-gulp.task('release-major', () => releasy('major'));
-gulp.task('release-prerelease', () => releasy('prerelease'));
+gulp.task('release-patch', () => release('patch'));
+gulp.task('release-minor', () => release('minor'));
+gulp.task('release-major', () => release('major'));
+gulp.task('release-prerelease', () => release('prerelease'));
 
 /*
 * Default build for main. No bump.
 */
 gulp.task('default', () => runSequence(
-  'clean-main',
-  ['transpile-main', 'copy-main']
+  'clean',
+  ['transpile', 'copy']
 ));
+

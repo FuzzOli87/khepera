@@ -40,6 +40,7 @@
     "gulp-babel": "^6.1.2",
     "gulp-bump": "^2.1.0",
     "gulp-concat": "^2.6.0",
+    "gulp-git-streamed": "^1.0.0",
     "gulp-eslint": "^2.0.0",
     "gulp-git": "^1.7.1",
     "gulp-sloc": "^1.0.4",
@@ -50,6 +51,7 @@
     "nyc": "^6.4.0",
     "pre-commit": "^1.1.2",
     "run-sequence": "^1.1.5",
+    "through2": "^2.0.1",
     "source-map-support": "^0.4.0"
   },
   "dependencies": {
