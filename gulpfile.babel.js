@@ -14,8 +14,10 @@ import fs from 'fs';
 /* Helpers                                                                   */
 /* ************************************************************************* */
 
-const getPackageJSON = () => JSON.parse(fs.readFileSync('./package.json', 'utf8'));
-const getBabelRC = () => JSON.parse(fs.readFileSync('./.babelrc', 'utf8'));
+/*
+* Get any file synchronously
+*/
+const getFile = (filePath, enc = 'utf8') => JSON.parse(fs.readFileSync('./package.json', enc));
 
 /*
 * Generate and add todo task before committing.
@@ -43,7 +45,7 @@ const copy = (fileGlob, destDir) => gulp.src(fileGlob)
 * Hook transpiling step to gulpSrc passed in.
 */
 const transpile = (fileGlob, destDir) => {
-  const babelRC = JSON.parse(JSON.stringify(getBabelRC()));
+  const babelRC = JSON.parse(JSON.stringify(getFile('./.babelrc')));
   delete babelRC.sourceMaps;
 
   return gulp.src(fileGlob)
@@ -84,7 +86,7 @@ gulp.task('lint', () => (
 /* ************************************************************************* */
 
 /*
-* Transpile main source to /dist.
+* Transpile src/* to /dist.
 */
 gulp.task('transpile', () => transpile('src/**/*.js', 'dist'));
 
@@ -109,14 +111,7 @@ const bump = (importance, tag) => gulp.src('./package.json')
   .pipe(gulp.dest('./'));
 
 /*
-* Release tasks.
-*/
-// gulp.task('git-tag', () => (
-//   git.tag()
-// ));
-
-/*
-* Release tasks.
+* Git commands used by release tasks
 */
 const gitCB = err => {
   if (err) {
@@ -128,8 +123,11 @@ const add = glob => gulp.src(glob).pipe(git.add());
 const describe = options => git.exec(options, gitCB);
 const push = opts => git.push(null, null, opts);
 
+/*
+* After bumping, get the new version and create a tag of it, commit the tag and push with tags 
+*/
 gulp.task('git-bump-tag', () => {
-  const pkg = getPackageJSON();
+  const pkg = getFile('./package.json');
   const version = `v${pkg.version}`;
   const commitMsg = `Release ${version}`;
   const tagMsg = `Version ${pkg.version}`;
