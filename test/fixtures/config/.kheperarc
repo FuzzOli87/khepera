@@ -1,0 +1,5 @@
+{
+  base: {
+    dir: '../projects'
+  }
+}

@@ -17,7 +17,7 @@ import fs from 'fs';
 /*
 * Get any file synchronously
 */
-const getFile = (filePath, enc = 'utf8') => JSON.parse(fs.readFileSync('./package.json', enc));
+const getFile = (filePath, enc = 'utf8') => JSON.parse(fs.readFileSync(filePath, enc));
 
 /*
 * Generate and add todo task before committing.
@@ -46,6 +46,7 @@ const copy = (fileGlob, destDir) => gulp.src(fileGlob)
 */
 const transpile = (fileGlob, destDir) => {
   const babelRC = JSON.parse(JSON.stringify(getFile('./.babelrc')));
+  console.log('BABELRC', babelRC);
   delete babelRC.sourceMaps;
 
   return gulp.src(fileGlob)
@@ -124,7 +125,7 @@ const describe = options => git.exec(options, gitCB);
 const push = opts => git.push(null, null, opts);
 
 /*
-* After bumping, get the new version and create a tag of it, commit the tag and push with tags 
+* After bumping, get the new version and create a tag of it, commit the tag and push with tags
 */
 gulp.task('git-bump-tag', () => {
   const pkg = getFile('./package.json');

@@ -25,10 +25,11 @@ if (!homeDir) {
   process.exit(1);
 }
 
-const configurationFilePath = path.resolve(homeDir, '.kheperarc');
 try {
+  const configurationFilePath = path.resolve(homeDir, '.kheperarc');
   const configurationFile = fs.statSync(configurationFilePath).isFile();
 } catch (err) {
   console.log('No .kheperarc file found in home directory');
   process.exit(1);
 }
+
